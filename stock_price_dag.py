@@ -53,7 +53,7 @@ def transform(text: str):
             float(v["3. low"]),
             float(v["4. close"]),
             int(v["5. volume"]),
-            d,        # 'YYYY-MM-DD' string acceptable for Snowflake DATE
+            d,        
             SYMBOL,
         ))
     return rows
@@ -63,19 +63,18 @@ def transform(text: str):
 def load(records):
     """
     Full refresh using a SQL transaction:
-      1) Ensure table exists (DDL is autocommitted by Snowflake)
+      1) Ensure table exists
       2) BEGIN
       3) TRUNCATE TABLE
-      4) Bulk INSERT (executemany)
+      4) Bulk INSERT 
       5) COMMIT  (or ROLLBACK on error)
     """
     if not records:
         raise ValueError("No rows to load; aborting to avoid truncating to empty table.")
 
     cur = return_snowflake_conn()
-    conn = cur.connection  # access connection to control autocommit
+    conn = cur.connection  
     try:
-        # 1) Ensure table exists (outside the explicit tx; Snowflake autocommits DDL)
         cur.execute(f"""
             CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (
                 OPEN NUMBER,
@@ -89,16 +88,14 @@ def load(records):
             )
         """)
 
-        # Turn off autocommit so we control the transaction boundary
         conn.autocommit = False
 
-        # 2) BEGIN
         cur.execute("BEGIN")
 
-        # 3) TRUNCATE for a true full refresh (faster than DELETE)
+        # TRUNCATE for a true full refresh 
         cur.execute(f"TRUNCATE TABLE {TARGET_TABLE}")
 
-        # 4) Bulk insert
+        # Bulk insert
         insert_sql = f"""
             INSERT INTO {TARGET_TABLE}
             (OPEN, HIGH, LOW, CLOSE, TRADE_VOLUME, TRADE_DATE, SYMBOL)
@@ -106,10 +103,8 @@ def load(records):
         """
         cur.executemany(insert_sql, records)
 
-        # 5) COMMIT
         cur.execute("COMMIT")
 
-        # Optional sanity check
         cur.execute(f"SELECT COUNT(*) FROM {TARGET_TABLE}")
         count = cur.fetchone()[0]
         print(f"Full refresh committed. Row count in target: {count}")
